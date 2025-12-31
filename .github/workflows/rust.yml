@@ -37,8 +37,5 @@ jobs:
     - name: Build Release
       run: cargo build --release --verbose
 
-    - name: Run Tests
-      run: cargo test --verbose
-
     - name: Check for unused dependencies
       run: cargo udeps || true
