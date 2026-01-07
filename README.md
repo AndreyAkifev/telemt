@@ -141,6 +141,11 @@ client_keepalive = 600                  # Seconds
 client_ack_timeout = 300                # Seconds
 ```
 ### Advanced
+#### Adtag
+To use channel advertising and usage statistics from Telegram, get Adtag from [@mtproxybot](https://t.me/mtproxybot), add this parameter to the end of config.toml and specify it
+```toml
+ad_tag = "00000000000000000000000000000000" # Replace zeros to your adtag from @mtproxybot
+```
 #### Listening and Announce IPs
 To specify listening address and/or address in links, add to the end of config.toml:
 ```toml
