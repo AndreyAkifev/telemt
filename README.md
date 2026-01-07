@@ -10,6 +10,7 @@
 - [Configuration](#configuration)
   - [Minimal Configuration](#minimal-configuration-for-first-start)
   - [Advanced](#advanced)
+    - [Listening and Announce IPs](#listening-and-announce-ips)
     - [Upstream Manager](#upstream-manager)
       - [IP](#bind-on-ip)
       - [SOCKS](#socks45-as-upstream)
@@ -140,7 +141,7 @@ client_keepalive = 600                  # Seconds
 client_ack_timeout = 300                # Seconds
 ```
 ### Advanced
-#### Listeners and Announce IPs
+#### Listening and Announce IPs
 To specify listening address and/or address in links, add to the end of config.toml:
 ```toml
 [[listeners]]
