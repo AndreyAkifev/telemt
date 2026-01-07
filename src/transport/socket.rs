@@ -1,7 +1,7 @@
 //! TCP Socket Configuration
 
 use std::io::Result;
-use std::net::SocketAddr;
+use std::net::{SocketAddr, IpAddr};
 use std::time::Duration;
 use tokio::net::TcpStream;
 use socket2::{Socket, TcpKeepalive, Domain, Type, Protocol};
@@ -93,6 +93,11 @@ pub fn set_linger_zero(stream: &TcpStream) -> Result<()> {
 
 /// Create a new TCP socket for outgoing connections
 pub fn create_outgoing_socket(addr: SocketAddr) -> Result<Socket> {
+    create_outgoing_socket_bound(addr, None)
+}
+
+/// Create a new TCP socket for outgoing connections, optionally bound to a specific interface
+pub fn create_outgoing_socket_bound(addr: SocketAddr, bind_addr: Option<IpAddr>) -> Result<Socket> {
     let domain = if addr.is_ipv4() {
         Domain::IPV4
     } else {
@@ -106,9 +111,16 @@ pub fn create_outgoing_socket(addr: SocketAddr) -> Result<Socket> {
     
     // Disable Nagle
     socket.set_nodelay(true)?;
+
+    if let Some(bind_ip) = bind_addr {
+        let bind_sock_addr = SocketAddr::new(bind_ip, 0);
+        socket.bind(&bind_sock_addr.into())?;
+        debug!("Bound outgoing socket to {}", bind_ip);
+    }
     
     Ok(socket)
 }
+
 
 /// Get local address of a socket
 pub fn get_local_addr(stream: &TcpStream) -> Option<SocketAddr> {

@@ -13,7 +13,7 @@ const MASK_BUFFER_SIZE: usize = 8192;
 
 /// Handle a bad client by forwarding to mask host
 pub async fn handle_bad_client(
-    mut client: TcpStream,
+    client: TcpStream,
     initial_data: &[u8],
     config: &ProxyConfig,
 ) {

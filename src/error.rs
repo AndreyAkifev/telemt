@@ -235,6 +235,9 @@ pub enum ProxyError {
     #[error("Invalid proxy protocol header")]
     InvalidProxyProtocol,
     
+    #[error("Proxy error: {0}")]
+    Proxy(String),
+    
     // ============= Config Errors =============
     
     #[error("Config error: {0}")]

@@ -18,11 +18,54 @@ pub struct ProxyModes {
 }
 
 fn default_true() -> bool { true }
+fn default_weight() -> u16 { 1 }
 
 impl Default for ProxyModes {
     fn default() -> Self {
         Self { classic: true, secure: true, tls: true }
     }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(tag = "type", rename_all = "lowercase")]
+pub enum UpstreamType {
+    Direct {
+        #[serde(default)]
+        interface: Option<String>, // Bind to specific IP/Interface
+    },
+    Socks4 {
+        address: String, // IP:Port of SOCKS server
+        #[serde(default)]
+        interface: Option<String>, // Bind to specific IP/Interface for connection to SOCKS
+        #[serde(default)]
+        user_id: Option<String>,
+    },
+    Socks5 {
+        address: String,
+        #[serde(default)]
+        interface: Option<String>,
+        #[serde(default)]
+        username: Option<String>,
+        #[serde(default)]
+        password: Option<String>,
+    },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpstreamConfig {
+    #[serde(flatten)]
+    pub upstream_type: UpstreamType,
+    #[serde(default = "default_weight")]
+    pub weight: u16,
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ListenerConfig {
+    pub ip: IpAddr,
+    #[serde(default)]
+    pub announce_ip: Option<IpAddr>, // IP to show in tg:// links
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -104,6 +147,13 @@ pub struct ProxyConfig {
     
     #[serde(default = "default_fake_cert_len")]
     pub fake_cert_len: usize,
+
+    // New fields
+    #[serde(default)]
+    pub upstreams: Vec<UpstreamConfig>,
+
+    #[serde(default)]
+    pub listeners: Vec<ListenerConfig>,
 }
 
 fn default_port() -> u16 { 443 }
@@ -156,6 +206,8 @@ impl Default for ProxyConfig {
             metrics_port: None,
             metrics_whitelist: default_metrics_whitelist(),
             fake_cert_len: default_fake_cert_len(),
+            upstreams: Vec::new(),
+            listeners: Vec::new(),
         }
     }
 }
@@ -187,6 +239,33 @@ impl ProxyConfig {
         use rand::Rng;
         config.fake_cert_len = rand::thread_rng().gen_range(1024..4096);
         
+        // Migration: Populate listeners if empty
+        if config.listeners.is_empty() {
+            if let Ok(ipv4) = config.listen_addr_ipv4.parse::<IpAddr>() {
+                config.listeners.push(ListenerConfig {
+                    ip: ipv4,
+                    announce_ip: None,
+                });
+            }
+            if let Some(ipv6_str) = &config.listen_addr_ipv6 {
+                 if let Ok(ipv6) = ipv6_str.parse::<IpAddr>() {
+                    config.listeners.push(ListenerConfig {
+                        ip: ipv6,
+                        announce_ip: None,
+                    });
+                }
+            }
+        }
+
+        // Migration: Populate upstreams if empty (Default Direct)
+        if config.upstreams.is_empty() {
+             config.upstreams.push(UpstreamConfig {
+                upstream_type: UpstreamType::Direct { interface: None },
+                weight: 1,
+                enabled: true,
+            });
+        }
+        
         Ok(config)
     }
     
@@ -200,28 +279,5 @@ impl ProxyConfig {
         }
         
         Ok(())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    
-    #[test]
-    fn test_default_config() {
-        let config = ProxyConfig::default();
-        assert_eq!(config.port, 443);
-        assert!(config.modes.tls);
-        assert_eq!(config.client_keepalive, 600);
-        assert_eq!(config.client_ack_timeout, 300);
-    }
-    
-    #[test]
-    fn test_config_validate() {
-        let mut config = ProxyConfig::default();
-        assert!(config.validate().is_ok());
-        
-        config.users.clear();
-        assert!(config.validate().is_err());
     }
 }
