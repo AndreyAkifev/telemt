@@ -358,7 +358,7 @@ impl RunningClientHandler {
             original_dc = dc_idx,
             fallback_dc = (fallback_idx + 1) as u16,
             fallback_addr = %datacenters[fallback_idx],
-            "Unknown DC not in ±1..5 range, routing to default cluster                  (same as C impl: mf_cluster_lookup with force=1 -> default_cluster)"
+            "Special DC ---> default_cluster"
         );
     
         Ok(SocketAddr::new(datacenters[fallback_idx], TG_DATACENTER_PORT))
