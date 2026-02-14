@@ -78,3 +78,6 @@ weight = 10
 # address = "127.0.0.1:1080"
 # enabled = false
 # weight = 1
+
+[dc_overrides]
+"203" = "91.105.192.100:443"
