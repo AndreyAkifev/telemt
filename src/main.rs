@@ -250,15 +250,13 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
                 info!(
                     local_ip = %probe.local_addr.ip(),
                     reflected_ip = %probe.reflected_addr.ip(),
-                    "STUN detected public address"
+                    "STUN Autodetect:"
                 );
                 if probe.local_addr.ip() != probe.reflected_addr.ip()
                     && !config.general.stun_iface_mismatch_ignore
                 {
                     warn!(
-                        local_ip = %probe.local_addr.ip(),
-                        reflected_ip = %probe.reflected_addr.ip(),
-                        "STUN/interface IP mismatch; falling back to direct DC (set stun_iface_mismatch_ignore=true to force Middle Proxy)"
+                        "STUN/IP-on-Interface mismatch -> fallback to direct-DC"
                     );
                     use_middle_proxy = false;
                 }
