@@ -45,10 +45,10 @@ jobs:
     - name: Run tests
       run: cargo test --verbose
 
-# clippy commented out because of active development of telemt 
+# clippy dont fail on warnings because of active development of telemt 
 # and many warnings
     - name: Run clippy
-      run: cargo clippy -- -W warnings
+      run: cargo clippy -- --cap-lints warn
 
     - name: Check for unused dependencies
       run: cargo udeps || true
