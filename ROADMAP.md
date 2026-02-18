@@ -5,7 +5,7 @@
 - `getProxyConfig` and `ProxySecret` are automated
 - Version order is now in format `3.0.0` - without Windows-style "microfixes"
 
-- ## 3.0.1 Kabelsammler
+### 3.0.1 Kabelsammler
 - Handshake timeouts fixed
 - Connectivity logging refactored
 - Docker: tmpfs for ProxyConfig and ProxySecret
@@ -13,12 +13,12 @@
 - ME Relays Head-of-Line Blocking fixed
 - ME Ping
 
-## 3.0.2 Microtrencher
+### 3.0.2 Microtrencher
 - New [network] section
 - ME Fixes
 - Small bugs coverage
 
-## 3.0.3 Ausrutscher
+### 3.0.3 Ausrutscher
 - ME as stateful, no conn-id migration
 - No `flush()` on datapath after RpcWriter
 - Hightech parser for IPv6 without regexp
@@ -27,7 +27,7 @@
 - ConnRegistry review
 - Dualstack emergency reconnect
 
-## 3.0.4 Schneeflecken
+### 3.0.4 Schneeflecken
 - Only WARN and Links in Normal log
 - Consistent IP-family detection
 - Includes for config
