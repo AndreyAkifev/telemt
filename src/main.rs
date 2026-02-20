@@ -36,7 +36,7 @@ use crate::proxy::ClientHandler;
 use crate::stats::{ReplayChecker, Stats};
 use crate::stream::BufferPool;
 use crate::transport::middle_proxy::{
-    MePool, fetch_proxy_config, run_me_ping, MePingFamily, MePingSample, format_sample_line,
+    MePool, fetch_proxy_config, run_me_ping, MePingFamily, MePingSample, format_sample_line, select_socks_proxy_url,
 };
 use crate::transport::{ListenOptions, UpstreamManager, create_listener};
 use crate::tls_front::TlsFrontCache;
@@ -252,6 +252,8 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
     let mut use_middle_proxy = config.general.use_middle_proxy && (decision.ipv4_me || decision.ipv6_me);
     let stats = Arc::new(Stats::new());
     let rng = Arc::new(SecureRandom::new());
+    let upstream_manager = Arc::new(UpstreamManager::new(config.upstreams.clone()));
+    let me_http_socks_proxy = select_socks_proxy_url(&config.upstreams);
 
     // IP Tracker initialization
     let ip_tracker = Arc::new(UserIpTracker::new());
@@ -293,7 +295,7 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
         // proxy-secret is from: https://core.telegram.org/getProxySecret
         // =============================================================
         let proxy_secret_path = config.general.proxy_secret_path.as_deref();
-match crate::transport::middle_proxy::fetch_proxy_secret(proxy_secret_path).await {
+match crate::transport::middle_proxy::fetch_proxy_secret(proxy_secret_path, me_http_socks_proxy.as_deref()).await {
     Ok(proxy_secret) => {
         info!(
             secret_len = proxy_secret.len() as usize,  // ← ЯВНЫЙ ТИП usize
@@ -316,11 +318,13 @@ match crate::transport::middle_proxy::fetch_proxy_secret(proxy_secret_path).awai
                 // Load ME config (v4/v6) + default DC
                 let mut cfg_v4 = fetch_proxy_config(
                     "https://core.telegram.org/getProxyConfig",
+                    me_http_socks_proxy.as_deref(),
                 )
                 .await
                 .unwrap_or_default();
                 let mut cfg_v6 = fetch_proxy_config(
                     "https://core.telegram.org/getProxyConfigV6",
+                    me_http_socks_proxy.as_deref(),
                 )
                 .await
                 .unwrap_or_default();
@@ -335,6 +339,8 @@ match crate::transport::middle_proxy::fetch_proxy_secret(proxy_secret_path).awai
                 let pool = MePool::new(
                     proxy_tag,
                     proxy_secret,
+                    Some(upstream_manager.clone()),
+                    me_http_socks_proxy.clone(),
                     config.general.middle_proxy_nat_ip,
                     config.general.middle_proxy_nat_probe,
                     config.general.middle_proxy_nat_stun.clone(),
@@ -436,7 +442,6 @@ match crate::transport::middle_proxy::fetch_proxy_secret(proxy_secret_path).awai
         Duration::from_secs(config.access.replay_window_secs),
     ));
 
-    let upstream_manager = Arc::new(UpstreamManager::new(config.upstreams.clone()));
     let buffer_pool = Arc::new(BufferPool::with_config(16 * 1024, 4096));
 
     // TLS front cache (optional emulation)

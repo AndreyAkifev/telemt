@@ -15,6 +15,7 @@ use crate::error::{ProxyError, Result};
 use crate::network::probe::NetworkDecision;
 use crate::network::IpFamily;
 use crate::protocol::constants::*;
+use crate::transport::UpstreamManager;
 
 use super::ConnRegistry;
 use super::registry::{BoundConn, ConnMeta};
@@ -40,6 +41,8 @@ pub struct MePool {
     pub(super) writers: Arc<RwLock<Vec<MeWriter>>>,
     pub(super) rr: AtomicU64,
     pub(super) decision: NetworkDecision,
+    pub(super) upstream_manager: Option<Arc<UpstreamManager>>,
+    pub(super) http_proxy_url: Option<String>,
     pub(super) rng: Arc<SecureRandom>,
     pub(super) proxy_tag: Option<Vec<u8>>,
     pub(super) proxy_secret: Arc<RwLock<Vec<u8>>>,
@@ -88,6 +91,8 @@ impl MePool {
     pub fn new(
         proxy_tag: Option<Vec<u8>>,
         proxy_secret: Vec<u8>,
+        upstream_manager: Option<Arc<UpstreamManager>>,
+        http_proxy_url: Option<String>,
         nat_ip: Option<IpAddr>,
         nat_probe: bool,
         nat_stun: Option<String>,
@@ -118,6 +123,8 @@ impl MePool {
             writers: Arc::new(RwLock::new(Vec::new())),
             rr: AtomicU64::new(0),
             decision,
+            upstream_manager,
+            http_proxy_url,
             rng,
             proxy_tag,
             proxy_secret: Arc::new(RwLock::new(proxy_secret)),

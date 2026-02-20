@@ -1,6 +1,7 @@
 //! Middle Proxy RPC transport.
 
 mod codec;
+mod http_client;
 mod handshake;
 mod health;
 mod pool;
@@ -17,6 +18,7 @@ mod wire;
 use bytes::Bytes;
 
 pub use health::me_health_monitor;
+pub use http_client::select_socks_proxy_url;
 pub use ping::{run_me_ping, format_sample_line, MePingReport, MePingSample, MePingFamily};
 pub use pool::MePool;
 pub use pool_nat::{stun_probe, detect_public_ip};

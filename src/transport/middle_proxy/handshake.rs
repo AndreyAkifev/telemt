@@ -44,6 +44,25 @@ impl MePool {
     /// TCP connect with timeout + return RTT in milliseconds.
     pub(crate) async fn connect_tcp(&self, addr: SocketAddr) -> Result<(TcpStream, f64)> {
         let start = Instant::now();
+        if let Some(manager) = &self.upstream_manager {
+            let stream = timeout(
+                Duration::from_secs(ME_CONNECT_TIMEOUT_SECS),
+                manager.connect(addr, None, None),
+            )
+            .await
+            .map_err(|_| ProxyError::ConnectionTimeout { addr: addr.to_string() })??;
+            let connect_ms = start.elapsed().as_secs_f64() * 1000.0;
+            stream.set_nodelay(true).ok();
+            if let Err(e) = Self::configure_keepalive(&stream) {
+                warn!(error = %e, "ME keepalive setup failed");
+            }
+            #[cfg(target_os = "linux")]
+            if let Err(e) = Self::configure_user_timeout(stream.as_raw_fd()) {
+                warn!(error = %e, "ME TCP_USER_TIMEOUT setup failed");
+            }
+            return Ok((stream, connect_ms));
+        }
+
         let connect_fut = async {
             if addr.is_ipv6() {
                 if let Some(v6) = self.detected_ipv6 {
@@ -84,8 +103,7 @@ impl MePool {
         let sock = SockRef::from(stream);
         let ka = TcpKeepalive::new()
             .with_time(Duration::from_secs(30))
-            .with_interval(Duration::from_secs(10))
-            .with_retries(3);
+            .with_interval(Duration::from_secs(10));
         sock.set_tcp_keepalive(&ka)?;
         sock.set_keepalive(true)?;
         Ok(())

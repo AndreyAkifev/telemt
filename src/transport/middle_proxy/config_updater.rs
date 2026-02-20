@@ -7,16 +7,17 @@ use httpdate;
 use tracing::{debug, info, warn};
 
 use crate::error::Result;
+use super::http_client::build_http_client;
 
 use super::MePool;
 use super::secret::download_proxy_secret;
 use crate::crypto::SecureRandom;
 use std::time::SystemTime;
 
-async fn retry_fetch(url: &str) -> Option<ProxyConfigData> {
+async fn retry_fetch(url: &str, socks_proxy_url: Option<&str>) -> Option<ProxyConfigData> {
     let delays = [1u64, 5, 15];
     for (i, d) in delays.iter().enumerate() {
-        match fetch_proxy_config(url).await {
+        match fetch_proxy_config(url, socks_proxy_url).await {
             Ok(cfg) => return Some(cfg),
             Err(e) => {
                 if i == delays.len() - 1 {
@@ -76,13 +77,17 @@ fn parse_proxy_line(line: &str) -> Option<(i32, IpAddr, u16)> {
     Some((dc, ip, port))
 }
 
-pub async fn fetch_proxy_config(url: &str) -> Result<ProxyConfigData> {
-    let resp = reqwest::get(url)
+pub async fn fetch_proxy_config(url: &str, socks_proxy_url: Option<&str>) -> Result<ProxyConfigData> {
+    let client = build_http_client(socks_proxy_url)?;
+    let resp: reqwest::Response = client
+        .get(url)
+        .send()
         .await
         .map_err(|e| crate::error::ProxyError::Proxy(format!("fetch_proxy_config GET failed: {e}")))?
         ;
 
     if let Some(date) = resp.headers().get(reqwest::header::DATE) {
+        let date: &reqwest::header::HeaderValue = date;
         if let Ok(date_str) = date.to_str() {
             if let Ok(server_time) = httpdate::parse_http_date(date_str) {
                 if let Ok(skew) = SystemTime::now().duration_since(server_time).or_else(|e| {
@@ -99,7 +104,7 @@ pub async fn fetch_proxy_config(url: &str) -> Result<ProxyConfigData> {
         }
     }
 
-    let text = resp
+    let text: String = resp
         .text()
         .await
         .map_err(|e| crate::error::ProxyError::Proxy(format!("fetch_proxy_config read failed: {e}")))?;
@@ -113,7 +118,7 @@ pub async fn fetch_proxy_config(url: &str) -> Result<ProxyConfigData> {
 
     let default_dc = text
         .lines()
-        .find_map(|l| {
+        .find_map(|l: &str| {
             let t = l.trim();
             if let Some(rest) = t.strip_prefix("default") {
                 return rest
@@ -136,7 +141,8 @@ pub async fn me_config_updater(pool: Arc<MePool>, rng: Arc<SecureRandom>, interv
         tick.tick().await;
 
         // Update proxy config v4
-        let cfg_v4 = retry_fetch("https://core.telegram.org/getProxyConfig").await;
+        let socks_proxy_url = pool.http_proxy_url.as_deref();
+        let cfg_v4 = retry_fetch("https://core.telegram.org/getProxyConfig", socks_proxy_url).await;
         if let Some(cfg) = cfg_v4 {
             let changed = pool.update_proxy_maps(cfg.map.clone(), None).await;
             if let Some(dc) = cfg.default_dc {
@@ -151,7 +157,7 @@ pub async fn me_config_updater(pool: Arc<MePool>, rng: Arc<SecureRandom>, interv
         }
 
         // Update proxy config v6 (optional)
-        let cfg_v6 = retry_fetch("https://core.telegram.org/getProxyConfigV6").await;
+        let cfg_v6 = retry_fetch("https://core.telegram.org/getProxyConfigV6", socks_proxy_url).await;
         if let Some(cfg_v6) = cfg_v6 {
             let changed = pool.update_proxy_maps(HashMap::new(), Some(cfg_v6.map)).await;
             if changed {
@@ -164,7 +170,7 @@ pub async fn me_config_updater(pool: Arc<MePool>, rng: Arc<SecureRandom>, interv
         pool.reset_stun_state();
 
         // Update proxy-secret
-        match download_proxy_secret().await {
+        match download_proxy_secret(socks_proxy_url).await {
             Ok(secret) => {
                 if pool.update_secret(secret).await {
                     info!("proxy-secret updated and pool reconnect scheduled");

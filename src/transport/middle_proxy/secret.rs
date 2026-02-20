@@ -1,17 +1,16 @@
-use std::time::Duration;
-
 use tracing::{debug, info, warn};
 use std::time::SystemTime;
 use httpdate;
 
 use crate::error::{ProxyError, Result};
+use super::http_client::build_http_client;
 
 /// Fetch Telegram proxy-secret binary.
-pub async fn fetch_proxy_secret(cache_path: Option<&str>) -> Result<Vec<u8>> {
+pub async fn fetch_proxy_secret(cache_path: Option<&str>, socks_proxy_url: Option<&str>) -> Result<Vec<u8>> {
     let cache = cache_path.unwrap_or("proxy-secret");
 
     // 1) Try fresh download first.
-    match download_proxy_secret().await {
+    match download_proxy_secret(socks_proxy_url).await {
         Ok(data) => {
             if let Err(e) = tokio::fs::write(cache, &data).await {
                 warn!(error = %e, "Failed to cache proxy-secret (non-fatal)");
@@ -53,8 +52,11 @@ pub async fn fetch_proxy_secret(cache_path: Option<&str>) -> Result<Vec<u8>> {
     }
 }
 
-pub async fn download_proxy_secret() -> Result<Vec<u8>> {
-    let resp = reqwest::get("https://core.telegram.org/getProxySecret")
+pub async fn download_proxy_secret(socks_proxy_url: Option<&str>) -> Result<Vec<u8>> {
+    let client = build_http_client(socks_proxy_url)?;
+    let resp: reqwest::Response = client
+        .get("https://core.telegram.org/getProxySecret")
+        .send()
         .await
         .map_err(|e| ProxyError::Proxy(format!("Failed to download proxy-secret: {e}")))?;
 
@@ -66,6 +68,7 @@ pub async fn download_proxy_secret() -> Result<Vec<u8>> {
     }
 
     if let Some(date) = resp.headers().get(reqwest::header::DATE) {
+        let date: &reqwest::header::HeaderValue = date;
         if let Ok(date_str) = date.to_str() {
             if let Ok(server_time) = httpdate::parse_http_date(date_str) {
                 if let Ok(skew) = SystemTime::now().duration_since(server_time).or_else(|e| {
@@ -82,7 +85,7 @@ pub async fn download_proxy_secret() -> Result<Vec<u8>> {
         }
     }
 
-    let data = resp
+    let data: Vec<u8> = resp
         .bytes()
         .await
         .map_err(|e| ProxyError::Proxy(format!("Read proxy-secret body: {e}")))?
