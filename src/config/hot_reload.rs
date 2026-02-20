@@ -319,6 +319,13 @@ pub fn spawn_config_watcher(
     // Bridge: sync notify callback → async task via mpsc.
     let (notify_tx, mut notify_rx) = mpsc::channel::<()>(4);
 
+    // Canonicalize the config path so it matches what notify returns in events
+    // (notify always gives absolute paths, but config_path may be relative).
+    let config_path = match config_path.canonicalize() {
+        Ok(p) => p,
+        Err(_) => config_path.to_path_buf(), // file doesn't exist yet, use as-is
+    };
+
     // Watch the parent directory rather than the file itself, because many
     // editors (vim, nano, systemd-sysusers) write via rename, which would
     // cause inotify to lose track of the original inode.
